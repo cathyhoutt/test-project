@@ -198,6 +198,94 @@ To github.com:cathyhoutt/test-project.git
     </div>
 
     <div class="issue">
+        <h2>问题三：Codex exec 模式沙箱参数不生效（Windows）</h2>
+        <p class="date">记录时间：2026-08-01</p>
+        
+        <div class="section">
+            <h3>问题描述</h3>
+            <p>在 Windows 上使用 <code>codex exec</code> 执行 git 推送操作时，即使通过 <code>-s workspace-write</code> 参数或配置文件指定沙箱模式，实际运行时仍显示 <code>sandbox: read-only</code>，导致写操作被拒绝。</p>
+        </div>
+
+        <div class="section">
+            <h3>错误信息</h3>
+            <pre><code>exec "git add README.md; git commit -m '更新安全配置记录'; git push origin main"
+ declined in 0ms: rejected: blocked by policy</code></pre>
+        </div>
+
+        <div class="section">
+            <h3>诊断过程</h3>
+            <p><strong>尝试 1：命令行参数 <code>-s workspace-write</code></strong></p>
+            <pre><code>codex exec -s workspace-write "git push origin main"</code></pre>
+            <p>结果：输出仍显示 <code>sandbox: read-only</code>，参数未生效。</p>
+
+            <p><strong>尝试 2：配置文件 <code>~/.codex/config.toml</code></strong></p>
+            <pre><code>sandbox_mode = "workspace-write"
+
+[sandbox]
+network_access = true</code></pre>
+            <p>结果：配置已正确写入，但 exec 模式仍强制使用 read-only。</p>
+
+            <p><strong>尝试 3：<code>-c</code> 参数覆盖配置</strong></p>
+            <pre><code>codex exec -c sandbox_mode="workspace-write" "git push"</code></pre>
+            <p>结果：仍然无效。</p>
+        </div>
+
+        <div class="section">
+            <h3>原因分析</h3>
+            <p>Codex 在 Windows 上的 <code>exec</code>（非交互）模式下，由于缺少 Linux 的命名空间隔离机制，会强制降级为 <code>read-only</code> 沙箱以确保安全。命令行参数和配置文件中的沙箱设置在此场景下不生效。</p>
+        </div>
+
+        <div class="section">
+            <h3>解决方案</h3>
+            <p><strong>方案 A：使用 <code>--dangerously-bypass-approvals-and-sandbox</code> 参数（临时）</strong></p>
+            <pre><code>codex exec --dangerously-bypass-approvals-and-sandbox "git add README.md && git commit -m '提交信息' && git push origin main"</code></pre>
+            <p class="error">⚠️ 警告：此参数完全绕过沙箱保护，仅在可信环境下临时使用。</p>
+
+            <p><strong>方案 B：使用交互模式（推荐）</strong></p>
+            <pre><code>codex</code></pre>
+            <p>在交互模式下，可手动审批每个操作，兼顾安全与可用性。</p>
+
+            <p><strong>方案 C：直接使用 git 命令</strong></p>
+            <p>对于简单的 git 操作，直接在终端执行更可靠：</p>
+            <pre><code>git add README.md
+git commit -m "提交信息"
+git push origin main</code></pre>
+        </div>
+
+        <div class="section">
+            <h3>验证结果</h3>
+            <pre><code>$ codex exec --dangerously-bypass-approvals-and-sandbox "git add README.md; git commit -m '更新安全配置记录'; git push origin main"
+
+sandbox: danger-full-access
+...
+[main fe4fa11] 更新安全配置记录
+ 1 file changed, 62 insertions(+), 1 deletion(-)
+To github.com:cathyhoutt/test-project.git
+   934631b..fe4fa11  main -> main</code></pre>
+            <p class="success">✓ 使用 bypass 参数后推送成功。</p>
+        </div>
+
+        <div class="section">
+            <h3>经验总结</h3>
+            <table>
+                <tr><th>场景</th><th>推荐方式</th></tr>
+                <tr>
+                    <td>需要 AI 辅助的复杂操作</td>
+                    <td>交互模式 <code>codex</code>，手动审批</td>
+                </tr>
+                <tr>
+                    <td>自动化脚本/CI</td>
+                    <td>直接调用 git/npm 等原生命令</td>
+                </tr>
+                <tr>
+                    <td>临时快速执行</td>
+                    <td><code>--dangerously-bypass-approvals-and-sandbox</code>（谨慎使用）</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <div class="issue">
         <h2>总结</h2>
         <table>
             <tr><th>问题</th><th>根本原因</th><th>解决方案</th></tr>
@@ -210,6 +298,11 @@ To github.com:cathyhoutt/test-project.git
                 <td>GitHub 连接失败</td>
                 <td>HTTPS 443 端口被防火墙/网络策略阻断</td>
                 <td>配置 git 全局 URL 重写规则，自动使用 SSH</td>
+            </tr>
+            <tr>
+                <td>Codex exec 沙箱参数不生效</td>
+                <td>Windows exec 模式强制降级为 read-only</td>
+                <td>使用交互模式或 --dangerously-bypass-approvals-and-sandbox</td>
             </tr>
         </table>
     </div>
