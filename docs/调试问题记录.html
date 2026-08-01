@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>调试问题记录</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .issue {
+            background: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .issue h2 {
+            color: #e74c3c;
+            margin-top: 0;
+            border-left: 4px solid #e74c3c;
+            padding-left: 10px;
+        }
+        .issue h3 {
+            color: #2980b9;
+            margin-bottom: 5px;
+        }
+        .section {
+            margin: 15px 0;
+        }
+        code {
+            background: #f8f8f8;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Consolas", "Monaco", monospace;
+            color: #c0392b;
+        }
+        pre {
+            background: #2d2d2d;
+            color: #f8f8f8;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        pre code {
+            background: none;
+            color: inherit;
+            padding: 0;
+        }
+        .success {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        .error {
+            color: #e74c3c;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background: #3498db;
+            color: white;
+        }
+        .date {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <h1>调试问题记录</h1>
+
+    <div class="issue">
+        <h2>问题一：Codex CLI 沙箱模式禁止网络操作</h2>
+        <p class="date">记录时间：2026-08-01</p>
+        
+        <div class="section">
+            <h3>问题描述</h3>
+            <p>使用 Codex CLI 执行 <code>git push</code> 等需要网络访问的操作时，命令被拒绝执行。</p>
+        </div>
+
+        <div class="section">
+            <h3>错误信息</h3>
+            <pre><code>error: cannot run git push: network access is disabled in sandbox mode</code></pre>
+        </div>
+
+        <div class="section">
+            <h3>原因分析</h3>
+            <p>Codex CLI 默认使用沙箱模式运行命令，出于安全考虑，沙箱会限制网络访问、文件系统写入等敏感操作。</p>
+        </div>
+
+        <div class="section">
+            <h3>解决方案</h3>
+            <p>修改 Codex 配置文件 <code>C:\Users\htt\.codex\config.toml</code>，添加沙箱例外规则：</p>
+            <pre><code>[sandbox]
+# 允许网络操作的命令白名单
+allowed_commands = [
+    "git",
+    "npm",
+    "pip",
+    "curl"
+]
+
+# 或者使用宽松模式（不推荐用于生产环境）
+# mode = "danger-full-access"</code></pre>
+            <p>也可以在命令行中使用参数临时禁用沙箱：</p>
+            <pre><code>codex exec --sandbox danger-full-access "git push -u origin main"</code></pre>
+        </div>
+
+        <div class="section">
+            <h3>验证结果</h3>
+            <p class="success">✓ 配置修改后，Codex 可以正常执行 git push 等网络操作。</p>
+        </div>
+    </div>
+
+    <div class="issue">
+        <h2>问题二：GitHub HTTPS (443端口) 无法连接</h2>
+        <p class="date">记录时间：2026-08-01</p>
+        
+        <div class="section">
+            <h3>问题描述</h3>
+            <p>执行 <code>git push</code> 时无法连接到 github.com，推送超时失败。</p>
+        </div>
+
+        <div class="section">
+            <h3>诊断过程</h3>
+            <p><strong>步骤 1：检查 Git 代理配置</strong></p>
+            <pre><code>git config --global --get http.proxy
+git config --global --get https.proxy</code></pre>
+            <p>结果：未配置任何代理。</p>
+
+            <p><strong>步骤 2：测试网络连通性</strong></p>
+            <pre><code>Test-NetConnection github.com -Port 443</code></pre>
+            <table>
+                <tr><th>ComputerName</th><th>TcpTestSucceeded</th></tr>
+                <tr><td>github.com</td><td class="error">False</td></tr>
+            </table>
+            <p>结论：HTTPS 端口 443 不通。</p>
+
+            <p><strong>步骤 3：测试 SSH 端口</strong></p>
+            <pre><code>Test-NetConnection github.com -Port 22</code></pre>
+            <table>
+                <tr><th>ComputerName</th><th>TcpTestSucceeded</th></tr>
+                <tr><td>github.com</td><td class="success">True</td></tr>
+            </table>
+            <p>结论：SSH 端口 22 可用！</p>
+        </div>
+
+        <div class="section">
+            <h3>解决方案</h3>
+            <p><strong>方案 A：切换单个仓库远端地址为 SSH</strong></p>
+            <pre><code>git remote set-url origin git@github.com:cathyhoutt/test-project.git</code></pre>
+
+            <p><strong>方案 B：配置全局规则（推荐）</strong></p>
+            <p>在 <code>C:\Users\htt\.gitconfig</code> 中添加：</p>
+            <pre><code>[url "git@github.com:"]
+    insteadOf = https://github.com/</code></pre>
+            <p>效果：所有 <code>https://github.com/</code> 地址自动转换为 <code>git@github.com:</code> SSH 方式。</p>
+        </div>
+
+        <div class="section">
+            <h3>SSH 密钥配置</h3>
+            <p>确认 <code>~/.ssh/config</code> 中已配置 GitHub 专用密钥：</p>
+            <pre><code>Host github.com
+    HostName github.com
+    User git
+    IdentityFile C:/Users/htt/.ssh/id_ed25519_github
+    IdentitiesOnly yes
+    ForwardAgent yes</code></pre>
+        </div>
+
+        <div class="section">
+            <h3>验证结果</h3>
+            <pre><code>$ git push -u origin main
+branch 'main' set up to track 'origin/main'.
+To github.com:cathyhoutt/test-project.git
+ * [new branch]      main -> main</code></pre>
+            <p class="success">✓ 推送成功，后续所有 GitHub 操作自动使用 SSH 通道。</p>
+        </div>
+    </div>
+
+    <div class="issue">
+        <h2>总结</h2>
+        <table>
+            <tr><th>问题</th><th>根本原因</th><th>解决方案</th></tr>
+            <tr>
+                <td>Codex 沙箱限制</td>
+                <td>默认沙箱模式禁止网络操作</td>
+                <td>修改 config.toml 添加命令白名单或使用 --sandbox 参数</td>
+            </tr>
+            <tr>
+                <td>GitHub 连接失败</td>
+                <td>HTTPS 443 端口被防火墙/网络策略阻断</td>
+                <td>配置 git 全局 URL 重写规则，自动使用 SSH</td>
+            </tr>
+        </table>
+    </div>
+</body>
+</html>
